@@ -22,7 +22,7 @@ So the challenge is that - take a barebones system and get it to the point of do
 * A Linux kernel
 * No busybox, no coreutils.
 * I don't know if other basic commands like `rm`, `chmod`, `mkdir` etc are present.  The only binary we know for sure is present is `cat`.
-* No guarantee of `bash`, however as it's Linux, we can assume a POSIX compatible shell, be it `bash`, `dash`, `ash` or, most likely, `ksh`.  Given that we don't know which, we target for POSIX as the lowest common denominator.
+* No guarantee of `bash`, however as it's Linux, we can assume a POSIX compatible shell, be it `bash`, `dash`, `ash` or, most likely, `ksh`.  Given that we don't know which, we target for POSIX as the lowest common denominator.  I'm going to use `/bin/ksh` for any examples below.
 
 **This means that we're largely bootstrapping from shell builtins.**
 
@@ -30,6 +30,7 @@ So the challenge is that - take a barebones system and get it to the point of do
 
 The first step is to assemble some rudimentary shell based tools to assist with editing files, without writing a full blown editor.  We will need at least the following:
 
+* `cled` - an extremely simple entry-only editor, editing is handled by other tools
 * `addln` - add a line to a file
 * `addbang` - create a new file with a shebang
 * `ls` - list files
@@ -60,7 +61,42 @@ EOF
 ```
 
 This is a far cry from what you see presented at the end of a `man cp`.
-    
+
+### Potential approaches
+
+* If tools like `mkdir` and `chmod` are present, then standalone scripts can be made, `$PATH` adjusted etc
+* Otherwise, scripts can be made an invoked with an interpreter e.g. `ksh myscript`
+* For a completely different option, these could be written as functions into files and then sourced
+    * e.g. Save all files with a `.func` extension and then load them with `source *.func`
+    * This gives the benefit of not having to call an interpreter, and is a simple bootstrap should you restart your session for whatever reason
+
+## Log of commands
+
+### `cled`
+
+The first tool I created was `cled`, which simply wraps `cat`.
+
+** WARNING: ** Note that this does not test for existing files, nor does it prompt for overwrites!
+
+```
+▓▒░$ cat > cled
+#!/bin/ksh
+printf -- '%s\n' "Enter one line at a time.  Press ctrl-D to exit." >&2
+cat > "${1:?No target specified}"
+```
+
+I entered ctrl-D and `cled` was written.  From now on, to create a file, you run `cled [target]`
+
+** For the extreme speedrunners, this should be enough, and they're onwards to coding in C **
+
+For a terser version, this could be dealt with as a shell function e.g.
+
+```
+cled() { cat > "${1:?}"; }
+```
+
+## Scratchpad
+
     # Extremely basic 'ls' function
     # No args accepted
     ls() {

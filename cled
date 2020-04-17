@@ -1,0 +1,3 @@
+#!/bin/ksh
+printf -- '%s\n' "Enter one line at a time.  Press ctrl-D to exit." >&2
+cat > "${1:?No target specified}"
