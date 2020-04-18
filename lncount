@@ -1,0 +1,6 @@
+#!/bin/ksh
+i=0
+while read -r line; do
+  i=$(( i + 1 ))
+done < "${1:?No target specified}"
+printf -- '%s\n' "${i}"

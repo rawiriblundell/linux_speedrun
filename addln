@@ -1,0 +1,2 @@
+#!/bin/ksh
+printf -- '%s\n' "${1:?No content supplied}" >> "${2:?No target specified}"

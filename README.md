@@ -41,10 +41,12 @@ The first step is to assemble some rudimentary shell based tools to assist with 
 * `behead` - print the last n lines of a file (default -5)
 * `rmln` - remove a line from a file (requires `head` and `behead`)
 * `chln` - change a line from a file with corrected content (requires `head` and `behead`)
+* `insln` - insert a line into a file at the specified line number
 * `grep` - search a file for a string
 * `lncount` - possibly a line count could be useful
 
-These tools will necessarily be *extremely* rudimentary and fragile, as they'll be bootstrapped with individual `echo` calls.  For example, to create an extremely basic `cp` command, knowing that we have `cat`:
+These tools will necessarily be *extremely* rudimentary and fragile, as they'll be bootstrapped with 
+individual `echo` calls.  For example, to create an extremely basic `cp` command, knowing that we have `cat`:
 
 ```
 echo "#!/bin/ksh" > cp
@@ -65,16 +67,20 @@ This is a far cry from what you see presented at the end of a `man cp`.
 ### Potential approaches
 
 * If tools like `mkdir` and `chmod` are present, then standalone scripts can be made, `$PATH` adjusted etc
-* Otherwise, scripts can be made an invoked with an interpreter e.g. `ksh myscript`
+* Otherwise, scripts can be made and invoked with an interpreter e.g. `ksh myscript`
 * For a completely different option, these could be written as functions into files and then sourced
     * e.g. Save all files with a `.func` extension and then load them with `source *.func`
-    * This gives the benefit of not having to call an interpreter, and is a simple bootstrap should you restart your session for whatever reason
+    * This gives the benefit of not having to call an interpreter, and is a simple bootstrap 
+      should you restart your session for whatever reason
 
 ## Log of commands
 
 ### `cled`
 
 The first tool I created was `cled`, which simply wraps `cat`.
+
+What's with the name?  "`c`ommand`l`ine `ed`itor".  Because "`s`hell `ed`itor", or "`s`imple `ed`itor" was
+taken, and "`sh`ell `i`nput `t`ext" didn't seem appropriate, despite its truthiness :)
 
 ** WARNING: ** Note that this does not test for existing files, nor does it prompt for overwrites!
 
@@ -87,7 +93,7 @@ cat > "${1:?No target specified}"
 
 I entered ctrl-D and `cled` was written.  From now on, to create a file, you run `cled [target]`
 
-** For the extreme speedrunners, this should be enough, and they're onwards to coding in C **
+**For the extreme speedrunners, this should be enough, and they're onwards to coding in C**
 
 For a terser version, this could be dealt with as a shell function e.g.
 
@@ -95,64 +101,142 @@ For a terser version, this could be dealt with as a shell function e.g.
 cled() { cat > "${1:?}"; }
 ```
 
+We may add features to `cled` later on...
+
+### `ls`
+
+For a very simple directory listing, we can use shell globbing and `printf`
+
+```
+▓▒░$ ./cled ls
+Enter one line at a time.  Press ctrl-D to exit.
+#!/bin/ksh
+printf -- '%s\n' ./.* ./*
+```
+
+And we can test it in use:
+
+```
+▓▒░$ ./ls
+./.
+./..
+./.git
+./cled
+./LICENSE
+./ls
+./README.md
+```
+
+### `addln`
+
+We may want to add a line to a file.  Normally this would be a `echo "content" >> file`, but
+as we will be creating other tools like `rmln`, we may as well create this for consistency.
+
+```
+▓▒░$ ./cled addln
+Enter one line at a time.  Press ctrl-D to exit.
+#!/bin/ksh
+printf -- '%s\n' "${1:?No content supplied}" >> "${2:?No target specified}"
+```
+
+Note that this MUST be used like `addln "content here is double quoted" targetfile`
+
+And let's test it:
+
+```
+▓▒░$ ./addln "#this is a testline" ls
+▓▒░$ cat ls
+#!/bin/ksh
+printf -- '%s\n' ./.* ./*
+#this is a testline
+```
+
+### `head`
+
+We're going to need a simple `head` variant to enable us to do things like insert
+lines at specific line numbers.  This code defaults to 10 lines, and has a pair of
+loops to cater for reading a file or stdin.  If a file is specified, so must the linecount.
+
+```
+▓▒░$ ./cled head
+Enter one line at a time.  Press ctrl-D to exit.
+#!/bin/ksh
+lines="${1:-10}"
+count=0
+
+if [ -r "${2}" ]; then
+  while IFS='\n' read -r line; do
+    printf -- '%s\n' "${line}"
+    count=$(( count + 1 ))
+    [ "${count}" -eq "${lines}" ] && return 0
+  done < "${2}"
+else
+  while IFS='\n' read -r line; do
+    printf -- '%s\n' "${line}"
+    count=$(( count + 1 ))
+    [ "${count}" -eq "${lines}" ] && return 0
+  done
+fi
+```
+
+And the test:
+
+```
+▓▒░$ ./head 2 head
+#!/bin/ksh
+lines="${1:-10}"
+```
+
+### `behead`
+
+### `nl`
+
+We will need to perform line operations on a certain line number.  For us to know
+that line number, we need to see the code printed out with a line number.
+
+### `lncount`
+
+Having a line count may be useful
+
+```
+▓▒░$ ./cled lncount
+Enter one line at a time.  Press ctrl-D to exit.
+#!/bin/ksh
+i=0
+while read -r line; do
+  i=$(( i + 1 ))
+done < "${1:?No target specified}"
+printf -- '%s\n' "${i}"
+▓▒░$ ./lncount lncount
+6
+```
+
+### `rmln`
+
+### `chln`
+
+### `insln`
+
+### `cp`
+
+```
+▓▒░$ ./cled cp
+Enter one line at a time.  Press ctrl-D to exit.
+#!/bin/ksh
+cat "${1:?No source specified}" > "${2:?No destination specified}"
+```
+
+### `grep`
+
+### `least`
+
+This is a simple paginator
+
 ## Scratchpad
 
-    # Extremely basic 'ls' function
-    # No args accepted
-    ls() {
-      printf -- '%s\n' ./.* ./*
-    }
 
-    # Line count, futureproofing for the existence of 'wc'
-    count_lines() {
-      if command -v wc >/dev/null 2>&1; then
-        if [ -r "${1}" ]; then
-          wc -l < "${1}"
-        else
-          wc -l
-        fi
-      else
-        _count=0
-        if [ -r "${1}" ]; then
-          while IFS='\n' read -r _line; do
-            _count=$(( _count + 1 ))
-          done < "${1}"
-        else
-          while IFS='\n' read -r _line; do
-            _count=$(( _count + 1 ))
-          done
-        fi
-        printf -- '%d\n' "${_count}"
-        unset -v _count _line
-      fi
-    }
-    
-    # Basic 'head' alternative, outputs 10 lines by default
-    # Usage:
-    # head [number of lines] [file]
-    # or
-    # cat file | head [number of lines]
-    head() {
-      _lines="${1:-10}"
-      _count=0
-    
-      if [ -r "${2}" ]; then
-        while IFS='\n' read -r line; do
-          printf -- '%s\n' "${line}"
-          _count=$(( _count + 1 ))
-          [ "${_count}" -eq "${_lines}" ] && return 0
-        done < "${2}"
-      else
-        while IFS='\n' read -r line; do
-          printf -- '%s\n' "${line}"
-          _count=$(( _count + 1 ))
-          [ "${_count}" -eq "${_lines}" ] && return 0
-        done
-      fi
-      unset -v _count _lines
-    }
-
-That `head` example gives us a basis for another tool that we could use to identify lines to remove, in case we have a version of `cat` that doesn't have the `-n` option...
+That `head` example gives us a basis for another tool that we could use to identify lines to remove,
+in case we have a version of `cat` that doesn't have the `-n` option...
 
     nl() {
       _count=1
