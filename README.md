@@ -73,7 +73,7 @@ This is a far cry from what you see presented at the end of a `man cp`.
     * This gives the benefit of not having to call an interpreter, and is a simple bootstrap 
       should you restart your session for whatever reason
 
-## Log of commands
+## Log of commands for generating these tools
 
 ### `cled`
 
@@ -82,7 +82,7 @@ The first tool I created was `cled`, which simply wraps `cat`.
 What's with the name?  "`c`ommand`l`ine `ed`itor".  Because "`s`hell `ed`itor", or "`s`imple `ed`itor" was
 taken, and "`sh`ell `i`nput `t`ext" didn't seem appropriate, despite its truthiness :)
 
-** WARNING: ** Note that this does not test for existing files, nor does it prompt for overwrites!
+**WARNING:** Note that this does not test for existing files, nor does it prompt for overwrites!
 
 ```
 ▓▒░$ cat > cled
@@ -187,88 +187,106 @@ And the test:
 lines="${1:-10}"
 ```
 
-### `behead`
-
 ### `nl`
 
 We will need to perform line operations on a certain line number.  For us to know
 that line number, we need to see the code printed out with a line number.
 
-### `lncount`
-
-Having a line count may be useful
+In Linux, `cat` should have the `-n` option that achieves the same thing, if not, 
+we can replicate the `nl` tool like this
 
 ```
-▓▒░$ ./cled lncount
+▓▒░$ ./cled nl
 Enter one line at a time.  Press ctrl-D to exit.
 #!/bin/ksh
-i=0
-while read -r line; do
-  i=$(( i + 1 ))
-done < "${1:?No target specified}"
-printf -- '%s\n' "${i}"
-▓▒░$ ./lncount lncount
-6
+count=1
+if [ -r "${1}" ]; then
+  while IFS='\n' read -r line; do
+    printf -- '%04d: %s\n' "${count}" "${line}"
+    count=$(( count + 1 ))
+  done < "${1}"
+else
+  while IFS='\n' read -r line; do
+    printf -- '%04d: %s\n' "${count}" "${line}"
+    count=$(( count + 1 ))
+  done
+fi
 ```
 
-### `rmln`
-
-### `chln`
-
-### `insln`
-
-### `cp`
+And test it like so:
 
 ```
-▓▒░$ ./cled cp
-Enter one line at a time.  Press ctrl-D to exit.
-#!/bin/ksh
-cat "${1:?No source specified}" > "${2:?No destination specified}"
+▓▒░$ ./nl cled
+0001: #!/bin/ksh
+0002: printf -- '%s\n' "Enter one line at a time.  Press ctrl-D to exit." >&2
+0003: cat > "${1:?No target specified}"
 ```
 
-### `grep`
+And we can start piping things together:
 
-### `least`
+```
+▓▒░$ ./nl ~/.bashrc | ./head 8
+0001: # shellcheck shell=bash
+0002: ################################################################################
+0003: # .bashrc
+0004: # Please don't copy anything below unless you understand what the code does!
+0005: # If you're looking for a licence... WTFPL plus Warranty Clause:
+0006: #
+0007: # This program is free software. It comes without any warranty, to
+0008: #     * the extent permitted by applicable law. You can redistribute it
+```
 
-This is a simple paginator
+### `behead`
 
-## Scratchpad
+To allow us to change, remove or insert lines, we need a counterpart for `head`
 
+#### change
 
-That `head` example gives us a basis for another tool that we could use to identify lines to remove,
-in case we have a version of `cat` that doesn't have the `-n` option...
+Consider the following file with line numbers shown:
 
-    nl() {
-      _count=1
-      if [ -r "${1}" ]; then
-        while IFS='\n' read -r _line; do
-          printf -- '%04d: %s\n' "${_count}" "${_line}"
-          _count=$(( _count + 1 ))
-        done < "${1}"
-      else
-        while IFS='\n' read -r _line; do
-          printf -- '%04d: %s\n' "${_count}" "${_line}"
-          _count=$(( _count + 1 ))
-        done
-      fi
-      unset -v _count
-    }
+```
+0001: A
+0002: B
+0003: C
+0004: D
+```
 
-Now we can start piping things together
+To change the second line would look something like this:
 
-    $ nl ~/.bashrc | head
-    0001: # shellcheck shell=bash
-    0002: ################################################################################
-    0003: # .bashrc
-    0004: # Please don't copy anything below unless you understand what the code does!
-    0005: # If you're looking for a licence... WTFPL plus Warranty Clause:
-    0006: #
-    0007: # This program is free software. It comes without any warranty, to
-    0008: #     * the extent permitted by applicable law. You can redistribute it
-    0009: #     * and/or modify it under the terms of the Do What The Fuck You Want
-    0010: #     * To Public License, Version 2, as published by Sam Hocevar. See
+```
++head 1 file
++printf newcontent
++behead 2 file
+```
 
-And then we can create another tool to help us:
+Giving us:
+
+```
+0001: A
+0002: newcontent
+0003: C
+0004: D
+```
+
+#### remove
+
+To remove a line is much the same as changing it, you simply don't insert the change i.e.
+
+```
++head 1 file
++behead 2 file
+```
+
+Giving us:
+
+```
+0001: A
+0002: C
+0003: D
+```
+
+#### insert
+
 
     # Print all but the first n lines
     behead() {
@@ -293,6 +311,8 @@ And then we can create another tool to help us:
       unset -v _count _lines _line
     }
 
+### `rmln`
+
 Right, so let's plumb `head` and `behead` together, like so:
 
     # Usage: remove_line [line number] [file]
@@ -314,6 +334,8 @@ So let's say we've `nl`'d or `cat -n`'d my example `.bashrc` from above, and we 
     # Please don't copy anything below unless you understand what the code does!
     # If you're looking for a licence... WTFPL plus Warranty Clause:
     #
+
+### `chln`
 
 So we can then move on to something like this:
 
@@ -340,5 +362,55 @@ Which looks like:
     # If you're looking for a licence... WTFPL plus Warranty Clause:
 
 Obviously that comes with its own set of headaches, but so far... `sed`, schmed!
+
+### `insln`
+
+### `cp`
+
+```
+▓▒░$ ./cled cp
+Enter one line at a time.  Press ctrl-D to exit.
+#!/bin/ksh
+cat "${1:?No source specified}" > "${2:?No destination specified}"
+```
+
+### `lncount`
+
+Having a line count may be useful
+
+```
+▓▒░$ ./cled lncount
+Enter one line at a time.  Press ctrl-D to exit.
+#!/bin/ksh
+i=0
+while read -r line; do
+  i=$(( i + 1 ))
+done < "${1:?No target specified}"
+printf -- '%s\n' "${i}"
+▓▒░$ ./lncount lncount
+6
+```
+
+### `grep`
+
+### `least`
+
+This is a simple paginator
+
+### `cled` version 0.0.2
+
+cled() {
+  fsobj="${1:?No target specified}"
+  if [ -e "${fsobj}" ]; then
+    if [ ! -w "${fsobj}" ]; then
+      printf -- '%s\n' "File is not writeable" >&2
+    else
+      :
+    fi
+  else
+    printf -- '%s\n' "Enter one line at a time, ctrl-D to finish" >&2
+    cat > "${fsobj}"
+  fi
+}
 
 From there, assembling C code becomes a lot more tenable.
