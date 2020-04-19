@@ -1,0 +1,8 @@
+#!/bin/ksh
+target_line="${1:?No line specified}"
+fs_obj="${2:?No file specified}"
+shift 2
+
+head "$(( target_line - 1 ))" "${fs_obj}"
+printf -- '%s\n' "${*}"
+behead "${target_line}" "${fs_obj}"

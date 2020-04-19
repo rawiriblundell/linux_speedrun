@@ -21,7 +21,8 @@ So the challenge is that - take a barebones system and get it to the point of do
 
 * A Linux kernel
 * No busybox, no coreutils.
-* I don't know if other basic commands like `rm`, `chmod`, `mkdir` etc are present.  The only binary we know for sure is present is `cat`.
+* I don't know if other basic commands like `rm`, `chmod`, `mkdir` etc are present.  I am going to 
+  assume that these commands are **not** available.  The only binary we know for sure is present is `cat`.
 * No guarantee of `bash`, however as it's Linux, we can assume a POSIX compatible shell, be it `bash`, `dash`, `ash` or, most likely, `ksh`.  Given that we don't know which, we target for POSIX as the lowest common denominator.  I'm going to use `/bin/ksh` for any examples below.
 
 **This means that we're largely bootstrapping from shell builtins.**
@@ -35,7 +36,6 @@ The first step is to assemble some rudimentary shell based tools to assist with 
 * `addbang` - create a new file with a shebang
 * `ls` - list files
 * `cp` - copy a file
-* `mv` - move a file, maybe?  Possibly something to save for C?
 * `nl` - print a file with linenumbers
 * `head` - print the first n lines of a file (default 10)
 * `behead` - print the last n lines of a file (default -5)
@@ -45,8 +45,9 @@ The first step is to assemble some rudimentary shell based tools to assist with 
 * `grep` - search a file for a string
 * `lncount` - possibly a line count could be useful
 
-These tools will necessarily be *extremely* rudimentary and fragile, as they'll be bootstrapped with 
-individual `echo` calls.  For example, to create an extremely basic `cp` command, knowing that we have `cat`:
+These tools will necessarily be *extremely* rudimentary and fragile, as they will be bootstrapped with 
+utter primitive approaches, such as individual `echo` calls.  For example, to create an extremely 
+basic `cp` command, knowing that we have `cat`:
 
 ```
 echo "#!/bin/ksh" > cp
@@ -64,9 +65,18 @@ EOF
 
 This is a far cry from what you see presented at the end of a `man cp`.
 
+Once we are bootstrapped to a point, we can start creating basic commands in C, like:
+
+* `chmod`
+* `mv`
+* `rm`
+
+
+
 ### Potential approaches
 
-* If tools like `mkdir` and `chmod` are present, then standalone scripts can be made, `$PATH` adjusted etc
+* If tools like `mkdir` and `chmod` are present, then standalone scripts can be made
+  within a `bin/` somewhere and `$PATH` adjusted
 * Otherwise, scripts can be made and invoked with an interpreter e.g. `ksh myscript`
 * For a completely different option, these could be written as functions into files and then sourced
     * e.g. Save all files with a `.func` extension and then load them with `source *.func`
@@ -91,7 +101,17 @@ printf -- '%s\n' "Enter one line at a time.  Press ctrl-D to exit." >&2
 cat > "${1:?No target specified}"
 ```
 
-I entered ctrl-D and `cled` was written.  From now on, to create a file, you run `cled [target]`
+I entered ctrl-D and `cled` was written.  
+
+Next, assuming we don't have `chmod`, to overcome this, we create an alias:
+
+```
+▓▒░$ alias cled="/bin/ksh $PWD/cled"
+▓▒░$ type cled
+cled is an alias for '/bin/ksh /home/rawiri/git/linux_speedrun/cled'
+```
+
+From now on, to create a file, you run `cled [target]`
 
 **For the extreme speedrunners, this should be enough, and they're onwards to coding in C**
 
@@ -108,7 +128,7 @@ We may add features to `cled` later on...
 For a very simple directory listing, we can use shell globbing and `printf`
 
 ```
-▓▒░$ ./cled ls
+▓▒░$ cled ls
 Enter one line at a time.  Press ctrl-D to exit.
 #!/bin/ksh
 printf -- '%s\n' ./.* ./*
@@ -117,7 +137,7 @@ printf -- '%s\n' ./.* ./*
 And we can test it in use:
 
 ```
-▓▒░$ ./ls
+▓▒░$ ksh ls
 ./.
 ./..
 ./.git
@@ -127,13 +147,19 @@ And we can test it in use:
 ./README.md
 ```
 
+And, if desired, alias it (something we will obviously do from now on):
+
+```
+▓▒░$ alias ls="/bin/ksh $PWD/ls"
+```
+
 ### `addln`
 
 We may want to add a line to a file.  Normally this would be a `echo "content" >> file`, but
 as we will be creating other tools like `rmln`, we may as well create this for consistency.
 
 ```
-▓▒░$ ./cled addln
+▓▒░$ cled addln
 Enter one line at a time.  Press ctrl-D to exit.
 #!/bin/ksh
 printf -- '%s\n' "${1:?No content supplied}" >> "${2:?No target specified}"
@@ -144,7 +170,7 @@ Note that this MUST be used like `addln "content here is double quoted" targetfi
 And let's test it:
 
 ```
-▓▒░$ ./addln "#this is a testline" ls
+▓▒░$ ksh addln "#this is a testline" ls
 ▓▒░$ cat ls
 #!/bin/ksh
 printf -- '%s\n' ./.* ./*
@@ -154,11 +180,11 @@ printf -- '%s\n' ./.* ./*
 ### `head`
 
 We're going to need a simple `head` variant to enable us to do things like insert
-lines at specific line numbers.  This code defaults to 10 lines, and has a pair of
+lines at specific line numbers.  This code defaults to 10 lines (stdin), and has a pair of
 loops to cater for reading a file or stdin.  If a file is specified, so must the linecount.
 
 ```
-▓▒░$ ./cled head
+▓▒░$ cled head
 Enter one line at a time.  Press ctrl-D to exit.
 #!/bin/ksh
 lines="${1:-10}"
@@ -182,7 +208,7 @@ fi
 And the test:
 
 ```
-▓▒░$ ./head 2 head
+▓▒░$ ksh head 2 head
 #!/bin/ksh
 lines="${1:-10}"
 ```
@@ -196,7 +222,7 @@ In Linux, `cat` should have the `-n` option that achieves the same thing, if not
 we can replicate the `nl` tool like this
 
 ```
-▓▒░$ ./cled nl
+▓▒░$ cled nl
 Enter one line at a time.  Press ctrl-D to exit.
 #!/bin/ksh
 count=1
@@ -216,7 +242,7 @@ fi
 And test it like so:
 
 ```
-▓▒░$ ./nl cled
+▓▒░$ ksh nl cled
 0001: #!/bin/ksh
 0002: printf -- '%s\n' "Enter one line at a time.  Press ctrl-D to exit." >&2
 0003: cat > "${1:?No target specified}"
@@ -225,7 +251,7 @@ And test it like so:
 And we can start piping things together:
 
 ```
-▓▒░$ ./nl ~/.bashrc | ./head 8
+▓▒░$ ksh nl ~/.bashrc | ksh head 8
 0001: # shellcheck shell=bash
 0002: ################################################################################
 0003: # .bashrc
@@ -238,9 +264,60 @@ And we can start piping things together:
 
 ### `behead`
 
-To allow us to change, remove or insert lines, we need a counterpart for `head`
+To allow us to change, remove or insert lines in an existing file, we need a 
+counterpart for `head`.  This allows us to `head` *n* number of lines from a file,
+perform an action, and then `behead` that same number of lines from the same file.
 
-#### change
+
+```
+▓▒░$ cled behead
+Enter one line at a time.  Press ctrl-D to exit.
+#!/bin/ksh
+lines="${1:-5}"
+count=0
+
+if [ -r "${2}" ]; then
+  while IFS='\n' read -r line; do
+    if (( count >= lines )); then
+      printf -- '%s\n' "${line}"
+    fi
+    count=$(( count + 1 ))
+  done < "${2}"
+else
+  while IFS='\n' read -r line; do
+    if (( count >= lines )); then
+      printf -- '%s\n' "${line}"
+    fi
+    count=$(( count + 1 ))
+  done
+fi
+```
+
+Okay, so after setting up an `alias`, we can test it:
+
+```
+▓▒░$ head 10 LICENSE | nl | behead 9
+0010: software to the public domain. We make this dedication for the benefit
+```
+
+### `chln`
+
+Now we mash `head` and `behead` together into a command to change a numbered line:
+
+```
+▓▒░$ cled chln
+Enter one line at a time.  Press ctrl-D to exit.
+#!/bin/ksh
+target_line="${1:?No line specified}"
+fs_obj="${2:?No file specified}"
+shift 2
+
+head "$(( target_line - 1 ))" "${fs_obj}"
+printf -- '%s\n' "${*}"
+behead "${target_line}" "${fs_obj}"
+```
+
+#### Example
 
 Consider the following file with line numbers shown:
 
@@ -268,48 +345,22 @@ Giving us:
 0004: D
 ```
 
-#### remove
-
-To remove a line is much the same as changing it, you simply don't insert the change i.e.
-
-```
-+head 1 file
-+behead 2 file
-```
-
-Giving us:
+**NOTE: These commands will only print the changes to stdout, they will not make the edits inline.**
+You will be responsible for piping this out to another file.  Fortunately, because we're using `alias`
+all over the place, we can simply do something like this:
 
 ```
-0001: A
-0002: C
-0003: D
+chln 4 ls "# This is an extra comment" > ls2
 ```
 
-#### insert
+Followed by
 
+```
+unalias ls
+alias ls="/bin/ksh $PWD/ls2
+```
 
-    # Print all but the first n lines
-    behead() {
-      _lines="${1:-5}"
-      _count=0
-    
-      if [ -r "${2}" ]; then
-        while IFS='\n' read -r _line; do
-          if [ "${_count}" -ge "${_lines}" ]; then
-            printf -- '%s\n' "${_line}"
-          fi
-          _count=$(( _count + 1 ))
-        done < "${2}"
-      else
-        while IFS='\n' read -r _line; do
-          if [ "${_count}" -ge "${_lines}" ]; then
-            printf -- '%s\n' "${_line}"
-          fi
-          _count=$(( _count + 1 ))
-        done
-      fi
-      unset -v _count _lines _line
-    }
+Once we get a working implementation of `mv`, we can correct this behaviour.
 
 ### `rmln`
 
@@ -326,49 +377,71 @@ Right, so let's plumb `head` and `behead` together, like so:
       unset -v _target _fsobj
     }
 
+#### Example: remove
+
+To remove a line is much the same as changing it, you simply don't insert the change i.e.
+
+```
++head 1 file
++behead 2 file
+```
+
+Giving us:
+
+```
+0001: A
+0002: C
+0003: D
+```
+
 So let's say we've `nl`'d or `cat -n`'d my example `.bashrc` from above, and we want to delete line number 2:
 
-    $ remove_line 2 ~/.bashrc | head 5
-    # shellcheck shell=bash
-    # .bashrc
-    # Please don't copy anything below unless you understand what the code does!
-    # If you're looking for a licence... WTFPL plus Warranty Clause:
-    #
-
-### `chln`
-
-So we can then move on to something like this:
-
-    # Usage: replace_line [line number] [file] [new content]
-    replace_line() {
-      _target="${1:?No line specified}"
-      _fsobj="${2:?No file specified}"
-      shift 2
-    
-      head "$(( _target - 1 ))" "${_fsobj}"
-      printf -- '%s\n' "${*}"
-      behead "${_target}" "${_fsobj}"
-    
-      unset -v _target _fsobj
-    }
-
-Which looks like:
-
-    $ replace_line 2 ~/.bashrc "# Pants are, in my opinion, overrated" | head 5
-    # shellcheck shell=bash
-    # Pants are, in my opinion, overrated
-    # .bashrc
-    # Please don't copy anything below unless you understand what the code does!
-    # If you're looking for a licence... WTFPL plus Warranty Clause:
-
-Obviously that comes with its own set of headaches, but so far... `sed`, schmed!
+```
+▓▒░$ rmln 2 ~/.bashrc | head 5
+# shellcheck shell=bash
+# .bashrc
+# Please don't copy anything below unless you understand what the code does!
+# If you're looking for a licence... WTFPL plus Warranty Clause:
+#
+```
 
 ### `insln`
+
+We may want to insert a line at a numbered point
+
+#### Example
+
+Consider the following file with line numbers shown:
+
+```
+0001: A
+0002: B
+0003: C
+0004: D
+```
+
+To insert a line between the second and third lines would look something like this:
+
+```
++head 2 file
++printf newcontent
++behead 2 file
+```
+
+Giving us:
+
+```
+0001: A
+0002: B
+0003: newcontent
+0004: C
+0005: D
+```
 
 ### `cp`
 
 ```
-▓▒░$ ./cled cp
+▓▒░$ cled cp
 Enter one line at a time.  Press ctrl-D to exit.
 #!/bin/ksh
 cat "${1:?No source specified}" > "${2:?No destination specified}"
@@ -379,7 +452,7 @@ cat "${1:?No source specified}" > "${2:?No destination specified}"
 Having a line count may be useful
 
 ```
-▓▒░$ ./cled lncount
+▓▒░$ cled lncount
 Enter one line at a time.  Press ctrl-D to exit.
 #!/bin/ksh
 i=0
@@ -387,7 +460,7 @@ while read -r line; do
   i=$(( i + 1 ))
 done < "${1:?No target specified}"
 printf -- '%s\n' "${i}"
-▓▒░$ ./lncount lncount
+▓▒░$ ksh lncount lncount
 6
 ```
 
