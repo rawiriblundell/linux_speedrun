@@ -392,7 +392,7 @@ Followed by
 cp ls2 ls
 ```
 
-Our version of `cp` does not care to prompt fo permission, it does as it's told.
+Our version of `cp` does not care to prompt for permission, it just does as it's told.
 
 ### `rmln`
 
