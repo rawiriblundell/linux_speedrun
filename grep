@@ -1,0 +1,19 @@
+#!/bin/ksh
+needle="${1:?No search term given}"
+count=1
+
+if [ -r "${2}" ]; then
+  while IFS='\n' read -r line; do
+    case "${line}" in
+      (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "${line}" ;;
+    esac
+    count=$(( count + 1 ))
+  done < "${2}"
+else
+  while IFS='\n' read -r line; do
+    case "${line}" in
+      (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "${line}" ;;
+    esac
+    count=$(( count + 1 ))
+  done
+fi

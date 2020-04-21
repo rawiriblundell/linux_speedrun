@@ -194,8 +194,11 @@ cat "${1:?No source specified}" > "${2:?No destination specified}"
 ### `head`
 
 We're going to need a simple `head` variant to enable us to do things like insert
-lines at specific line numbers.  This code defaults to 10 lines (stdin), and has a pair of
-loops to cater for reading a file or stdin.  If a file is specified, so must the linecount.
+lines at specific line numbers.  This code defaults to 10 lines (stdin), and has 
+a pair of loops to cater for reading a file or stdin.  In `bash` we could do 
+this with a single loop and read in `< "${2:-/dev/stdin}"`.
+
+Obviously, if a file is specified, then so must the linecount.
 
 ```
 ▓▒░$ cled head
@@ -229,8 +232,8 @@ lines="${1:-10}"
 
 ### `nl`
 
-We will need to perform line operations on a certain line number.  For us to know
-that line number, we need to see the code printed out with a line number.
+Most of our editing functions work on specific line numbers.  For us to know
+our target line numbers, we need to see the code printed out with them.
 
 In Linux, `cat` should have the `-n` option that achieves the same thing, if not, 
 we can replicate the `nl` tool like this
@@ -281,7 +284,6 @@ And we can start piping things together:
 To allow us to change, remove or insert lines in an existing file, we need a 
 counterpart for `head`.  This allows us to `head` *n* number of lines from a file,
 perform an action, and then `behead` that same number of lines from the same file.
-
 
 ```
 ▓▒░$ cled behead
@@ -427,8 +429,16 @@ shift 2
 ```
 
 So we copy `chln` to `tmp.rmln`, push out a line-numbered copy of `tmp.rmln`, which helps us to
-identify that the line 7 is the one that needs to go.  We then use `chln` to change
-line 7 to a blank line, and test that this output is as we 
+identify that line 7 is the one that needs to go.  We then use `chln` to change
+line 7 to a blank line, and test that this output is as we want it.
+
+In retrospect, I could have just done:
+
+```
+nl chln
+chln 7 chln ''
+chln 7 chln '' > rmln
+```
 
 #### Example: remove
 
@@ -488,12 +498,10 @@ printf -- '%s\n' "${*}"
 ▓▒░$chln 6 tmp.insln '/bin/ksh /home/rawiri/git/linux_speedrun/head "${target_line}" "${fs_obj}"' > insln
 ```
 
-I realised my mistake, and so I started again
+I realised my mistake, and so I started again:
 
 ```
-▓▒░$ cp chln tmp.insln
-
-▓▒░$ chln 8 tmp.insln '/bin/ksh /home/rawiri/git/linux_speedrun/behead "$(( target_line - 1 ))" "${fs_obj}"' > insln
+▓▒░$ chln 8 chln '/bin/ksh /home/rawiri/git/linux_speedrun/behead "$(( target_line - 1 ))" "${fs_obj}"' > insln
 ```
 
 Then we add an alias, because we're traking these in an `aliases` file now.
@@ -550,9 +558,77 @@ printf -- '%s\n' "${i}"
 
 ### `grep`
 
+To save us from having to read through scripts, we can simply print numbered
+matching lines.  This started out like this, but the keen eye will note the errors:
+
+```
+▓▒░$ cled grep
+Enter one line at a time.  Press ctrl-D to exit.
+#!/bin/ksh
+needle="${1:?No search term given}"
+count=1
+
+if [ -r "${1}" ]; then
+  while IFS='\n' read -r line; do
+    case "${line}" in
+      (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "{line}" ;;
+    esac
+  done < "${1}"
+else
+  while IFS='\n' read -r line; do
+    case "${line}" in
+      (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "{line}" ;;
+    esac
+  done
+fi
+```
+
+This resulted in a flurry of `chln`, `insln` and `rmln` calls bouncing back and
+forward between `grep` and `tmp.grep`.  Interestingly, the `n` in `then` in line
+5 kept disappearing.  Something to investigate...
+
+Finally, I got it settled on this, spot the differences:
+
+```
+▓▒░$ cat grep
+#!/bin/ksh
+needle="${1:?No search term given}"
+count=1
+
+if [ -r "${2}" ]; then
+  while IFS='\n' read -r line; do
+    case "${line}" in
+      (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "${line}" ;;
+    esac
+    count=$(( count + 1 ))
+  done < "${2}"
+else
+  while IFS='\n' read -r line; do
+    case "${line}" in
+      (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "${line}" ;;
+    esac
+    count=$(( count + 1 ))
+  done
+fi
+```
+
+And we can now show it at work:
+
+```
+▓▒░$ grep line grep
+0006:   while IFS='\n' read -r line; do
+0007:     case "${line}" in
+0008:       (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "${line}" ;;
+0013:   while IFS='\n' read -r line; do
+0014:     case "${line}" in
+0015:       (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "${line}" ;;
+```
+
 ### `least`
 
-This is a simple paginator
+Potentially we could create a simple paginator, but in all honesty, at this
+point we'd just be doing it for the fun of it.  We have sufficient tooling now
+to edit and correct code in a higher language...
 
 ### `cled` version 0.0.2
 
