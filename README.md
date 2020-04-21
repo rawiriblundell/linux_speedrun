@@ -11,6 +11,9 @@ FWIW, [Sonic the Hedgehog](https://www.youtube.com/watch?v=9kOAdhUlkt0) seems to
 
 So the challenge is that - take a barebones system and get it to the point of doing something meaningful.  As fast as possible.
 
+For an example of an equally weird challenge, you might want to check out this video of a 
+[1930's teletype being used as a Linux terminal.](https://www.youtube.com/watch?v=2XLZ4Z8LpEE)
+
 ## Explicit boundaries
 
 >There are no editors and nothing more advanced than 'cat' to read files. You don't have jed, joe, emacs, pico, vi, or ed (eat flaming death). Don't even think about X. telnet, nc, ftp, ncftp, lftp, wget, curl, lynx, links? Luxury! Gone. Perl, Python and Ruby? Nope.
@@ -23,13 +26,17 @@ So the challenge is that - take a barebones system and get it to the point of do
 * No busybox, no coreutils.
 * I don't know if other basic commands like `rm`, `chmod`, `mkdir` etc are present.  I am going to 
   assume that these commands are **not** available.  The only binary we know for sure is present is `cat`.
-* No guarantee of `bash`, however as it's Linux, we can assume a POSIX compatible shell, be it `bash`, `dash`, `ash` or, most likely, `ksh`.  Given that we don't know which, we target for POSIX as the lowest common denominator.  I'm going to use `/bin/ksh` for any examples below.
+* Because `cat` is present, that means that we have a shell with which to invoke it :)
+* No guarantee of `bash`, however as it's Linux, we can assume *at least* a POSIX compatible shell, be it `bash`, `dash`,
+ `ash` or, most likely, `ksh`.  Given that we don't know which, we target for POSIX as the lowest common denominator.  
+ I'm going to use `/bin/ksh` for any examples below.
 
 **This means that we're largely bootstrapping from shell builtins.**
 
 ## Plan
 
-The first step is to assemble some rudimentary shell based tools to assist with editing files, without writing a full blown editor.  We will need at least the following:
+The first step is to assemble some rudimentary shell based tools to assist with editing files, without writing a full blown editor.  
+We will need at least the following in a vague approximate order of preference:
 
 * `cled` - an extremely simple entry-only editor, editing is handled by other tools
 * `addln` - add a line to a file
@@ -45,7 +52,7 @@ The first step is to assemble some rudimentary shell based tools to assist with 
 * `grep` - search a file for a string
 * `lncount` - possibly a line count could be useful
 
-These tools will necessarily be *extremely* rudimentary and fragile, as they will be bootstrapped with 
+These tools will necessarily be *extremely* rudimentary and fragile, as they will be built with 
 utter primitive approaches, such as individual `echo` calls.  For example, to create an extremely 
 basic `cp` command, knowing that we have `cat`:
 
@@ -63,7 +70,7 @@ cat "\${1:?No source specified}" > "\${2:?No target specified}"
 EOF
 ```
 
-This is a far cry from what you see presented at the end of a `man cp`.
+This version of `cp` is obviously a far cry from what you see presented at the end of a `man cp`.
 
 Once we are bootstrapped to a point, we can start creating basic commands in C, like:
 
@@ -71,17 +78,8 @@ Once we are bootstrapped to a point, we can start creating basic commands in C, 
 * `mv`
 * `rm`
 
-
-
-### Potential approaches
-
-* If tools like `mkdir` and `chmod` are present, then standalone scripts can be made
-  within a `bin/` somewhere and `$PATH` adjusted
-* Otherwise, scripts can be made and invoked with an interpreter e.g. `ksh myscript`
-* For a completely different option, these could be written as functions into files and then sourced
-    * e.g. Save all files with a `.func` extension and then load them with `source *.func`
-    * This gives the benefit of not having to call an interpreter, and is a simple bootstrap 
-      should you restart your session for whatever reason
+At this point, we also want to consider getting dns responses and figuring out to
+search for, download and build various packages.  I would argue that `busybox` be one of the first.
 
 ## Log of commands for generating these tools
 
@@ -153,6 +151,11 @@ And, if desired, alias it (something we will obviously do from now on):
 ▓▒░$ alias ls="/bin/ksh $PWD/ls"
 ```
 
+We could make a shell based `ls` that gives more detail by running a battery
+of tests against each fs object, for now we just need to know what's in the current dir.
+Perhaps the only change worth adding would be a directory test - if it's a dir, append a `/`.
+Maybe something to revisit later...
+
 ### `addln`
 
 We may want to add a line to a file.  Normally this would be a `echo "content" >> file`, but
@@ -165,7 +168,7 @@ Enter one line at a time.  Press ctrl-D to exit.
 printf -- '%s\n' "${1:?No content supplied}" >> "${2:?No target specified}"
 ```
 
-Note that this MUST be used like `addln "content here is double quoted" targetfile`
+**Note that this MUST be used like** `addln "content here is double quoted" targetfile`
 
 And let's test it:
 
@@ -175,6 +178,17 @@ And let's test it:
 #!/bin/ksh
 printf -- '%s\n' ./.* ./*
 #this is a testline
+```
+
+### `cp`
+
+`cp` is a basic enough task:
+
+```
+▓▒░$ cled cp
+Enter one line at a time.  Press ctrl-D to exit.
+#!/bin/ksh
+cat "${1:?No source specified}" > "${2:?No destination specified}"
 ```
 
 ### `head`
@@ -317,6 +331,24 @@ printf -- '%s\n' "${*}"
 behead "${target_line}" "${fs_obj}"
 ```
 
+This did not go as planned.  As the files are not executable yet, PATH didn't help, and aliases don't expand here...
+
+As `cled` currently stands, it overwrites any existing files, which means typing the lot from scratch...
+if only... there were some command to... say... change a line...
+
+```
+$ cled chln
+Enter one line at a time.  Press ctrl-D to exit.
+#!/bin/ksh
+target_line="${1:?No line specified}"
+fs_obj="${2:?No file specified}"
+shift 2
+
+/bin/ksh /home/rawiri/git/linux_speedrun/head "$(( target_line - 1 ))" "${fs_obj}"
+printf -- '%s\n' "${*}"
+/bin/ksh /home/rawiri/git/linux_speedrun/behead "${target_line}" "${fs_obj}"
+```
+
 #### Example
 
 Consider the following file with line numbers shown:
@@ -364,18 +396,39 @@ Once we get a working implementation of `mv`, we can correct this behaviour.
 
 ### `rmln`
 
-Right, so let's plumb `head` and `behead` together, like so:
+Right, so we know that `rmln` is going to be very similar in structure to `chln`, and
+because we have `chln` and `cp`, then we may as well use those tools.  This is our
+first demonstration of our makeshift numbered-line editing system!
 
-    # Usage: remove_line [line number] [file]
-    remove_line() {
-      _target="${1:?No line specified}"
-      _fsobj="${2:?No file specified}"
-    
-      head "$(( _target - 1 ))" "${_fsobj}"
-      behead "${_target}" "${_fsobj}"
-    
-      unset -v _target _fsobj
-    }
+```
+▓▒░$ cp chln tmp.rmln
+
+▓▒░$ nl tmp.rmln
+0001: #!/bin/ksh
+0002: target_line="${1:?No line specified}"
+0003: fs_obj="${2:?No file specified}"
+0004: shift 2
+0005:
+0006: /bin/ksh /home/rawiri/git/linux_speedrun/head "$(( target_line - 1 ))" "${fs_obj}"
+0007: printf -- '%s\n' "${*}"
+0008: /bin/ksh /home/rawiri/git/linux_speedrun/behead "${target_line}" "${fs_obj}"
+
+▓▒░$ chln 7 tmp.rmln ''
+#!/bin/ksh
+target_line="${1:?No line specified}"
+fs_obj="${2:?No file specified}"
+shift 2
+
+/bin/ksh /home/rawiri/git/linux_speedrun/head "$(( target_line - 1 ))" "${fs_obj}"
+
+/bin/ksh /home/rawiri/git/linux_speedrun/behead "${target_line}" "${fs_obj}"
+
+▓▒░$ chln 7 tmp.rmln '' > rmln
+```
+
+So we copy `chln` to `tmp.rmln`, push out a line-numbered copy of `tmp.rmln`, which helps us to
+identify that the line 7 is the one that needs to go.  We then use `chln` to change
+line 7 to a blank line, and test that this output is as we 
 
 #### Example: remove
 
@@ -409,6 +462,46 @@ So let's say we've `nl`'d or `cat -n`'d my example `.bashrc` from above, and we 
 
 We may want to insert a line at a numbered point
 
+```
+▓▒░$ cp chln tmp.insln
+
+▓▒░$ nl tmp.insln n
+0001: #!/bin/ksh
+0002: target_line="${1:?No line specified}"
+0003: fs_obj="${2:?No file specified}"
+0004: shift 2
+0005:
+0006: /bin/ksh /home/rawiri/git/linux_speedrun/head "$(( target_line - 1 ))" "${fs_obj}"
+0007: printf -- '%s\n' "${*}"
+0008: /bin/ksh /home/rawiri/git/linux_speedrun/behead "${target_line}" "${fs_obj}"
+
+▓▒░$ chln 6 tmp.insln '/bin/ksh /home/rawiri/git/linux_speedrun/head "${target_line}" "${fs_obj}"'
+#!/bin/ksh
+target_line="${1:?No line specified}"
+fs_obj="${2:?No file specified}"
+shift 2
+
+/bin/ksh /home/rawiri/git/linux_speedrun/head "${target_line}" "${fs_obj}"
+printf -- '%s\n' "${*}"
+/bin/ksh /home/rawiri/git/linux_speedrun/behead "${target_line}" "${fs_obj}"
+
+▓▒░$chln 6 tmp.insln '/bin/ksh /home/rawiri/git/linux_speedrun/head "${target_line}" "${fs_obj}"' > insln
+```
+
+I realised my mistake, and so I started again
+
+```
+▓▒░$ cp chln tmp.insln
+
+▓▒░$ chln 8 tmp.insln '/bin/ksh /home/rawiri/git/linux_speedrun/behead "$(( target_line - 1 ))" "${fs_obj}"' > insln
+```
+
+Then we add an alias, because we're traking these in an `aliases` file now.
+
+```
+addln 'alias insln="/bin/ksh $PWD/insln"' aliases
+```
+
 #### Example
 
 Consider the following file with line numbers shown:
@@ -436,15 +529,6 @@ Giving us:
 0003: newcontent
 0004: C
 0005: D
-```
-
-### `cp`
-
-```
-▓▒░$ cled cp
-Enter one line at a time.  Press ctrl-D to exit.
-#!/bin/ksh
-cat "${1:?No source specified}" > "${2:?No destination specified}"
 ```
 
 ### `lncount`
