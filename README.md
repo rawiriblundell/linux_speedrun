@@ -475,7 +475,7 @@ We may want to insert a line at a numbered point
 ```
 ▓▒░$ cp chln tmp.insln
 
-▓▒░$ nl tmp.insln n
+▓▒░$ nl tmp.insln
 0001: #!/bin/ksh
 0002: target_line="${1:?No line specified}"
 0003: fs_obj="${2:?No file specified}"
@@ -504,7 +504,7 @@ I realised my mistake, and so I started again:
 ▓▒░$ chln 8 chln '/bin/ksh /home/rawiri/git/linux_speedrun/behead "$(( target_line - 1 ))" "${fs_obj}"' > insln
 ```
 
-Then we add an alias, because we're traking these in an `aliases` file now.
+Then we add an alias, because we're tracking these in an `aliases` file now.
 
 ```
 addln 'alias insln="/bin/ksh $PWD/insln"' aliases
