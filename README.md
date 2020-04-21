@@ -380,8 +380,7 @@ Giving us:
 ```
 
 **NOTE: These commands will only print the changes to stdout, they will not make the edits inline.**
-You will be responsible for piping this out to another file.  Fortunately, because we're using `alias`
-all over the place, we can simply do something like this:
+You will be responsible for redirecting this out to another file.  For example:
 
 ```
 chln 4 ls "# This is an extra comment" > ls2
@@ -390,11 +389,10 @@ chln 4 ls "# This is an extra comment" > ls2
 Followed by
 
 ```
-unalias ls
-alias ls="/bin/ksh $PWD/ls2
+cp ls2 ls
 ```
 
-Once we get a working implementation of `mv`, we can correct this behaviour.
+Our version of `cp` does not care to prompt fo permission, it does as it's told.
 
 ### `rmln`
 
