@@ -632,18 +632,21 @@ to edit and correct code in a higher language...
 
 ### `cled` version 0.0.2
 
-cled() {
-  fsobj="${1:?No target specified}"
-  if [ -e "${fsobj}" ]; then
-    if [ ! -w "${fsobj}" ]; then
-      printf -- '%s\n' "File is not writeable" >&2
-    else
-      :
-    fi
-  else
-    printf -- '%s\n' "Enter one line at a time, ctrl-D to finish" >&2
-    cat > "${fsobj}"
-  fi
-}
+Spitballing...
 
-From there, assembling C code becomes a lot more tenable.
+```
+#!/bin/ksh
+fsobj="${1:?No target specified}"
+if [ -e "${fsobj}" ]; then
+  if [ -w "${fsobj}" ]; then
+    printf -- '%s\n' "File exists, use the *ln tools to edit it" >&2
+    exit 1
+  else
+    printf -- '%s\n' "File is not writeable" >&2
+    exit 1
+  fi
+else
+  printf -- '%s\n' "Enter one line at a time, ctrl-D to finish" >&2
+  cat > "${fsobj}"
+fi
+```
