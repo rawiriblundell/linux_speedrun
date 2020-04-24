@@ -81,6 +81,55 @@ Once we are bootstrapped to a point, we can start creating basic commands in C, 
 At this point, we also want to consider getting dns responses and figuring out to
 search for, download and build various packages.  I would argue that `busybox` be one of the first.
 
+## /dev/stdin check
+
+On Linux, there should be a `/dev/stdin` available.  If so, this makes our tool
+creation so much simpler.  We test like so:
+
+```
+▓▒░$ [ -r /dev/stdin ] && echo $?
+0
+▓▒░$ while read -r line; do echo $line; done < /dev/stdin
+test  # I typed this in and pressed enter
+test  # This was echoed back
+# [ctrl-D]
+```
+
+If this is present and working, that means that for tools that may read either
+a file or stdin, we can structure them like this:
+
+```
+while IFS='\n' read -r line; do
+  # Do stuff
+done < "${1:/dev/stdin}"
+```
+
+If `/dev/stdin` isn't available, then we have to structure those same checks like so:
+
+```
+if [ -r "${1}" ]; then
+  while IFS='\n' read -r line; do
+    # Do stuff
+  done < "${1}"
+else
+  while IFS='\n' read -r line; do
+    # Do stuff
+  done
+fi
+```
+
+Alternatively, you could structure these tools like this:
+
+```
+while IFS='\n' read -r line; do
+  # Do stuff
+done
+```
+
+But you must remember to redirect files into your tools e.g.
+
+`mytool < somefile`
+
 ## Log of commands for generating these tools
 
 ### `cled`
@@ -207,19 +256,11 @@ Enter one line at a time.  Press ctrl-D to exit.
 lines="${1:-10}"
 count=0
 
-if [ -r "${2}" ]; then
-  while IFS='\n' read -r line; do
-    printf -- '%s\n' "${line}"
-    count=$(( count + 1 ))
-    [ "${count}" -eq "${lines}" ] && return 0
-  done < "${2}"
-else
-  while IFS='\n' read -r line; do
-    printf -- '%s\n' "${line}"
-    count=$(( count + 1 ))
-    [ "${count}" -eq "${lines}" ] && return 0
-  done
-fi
+while IFS='\n' read -r line; do
+  printf -- '%s\n' "${line}"
+  count=$(( count + 1 ))
+  [ "${count}" -eq "${lines}" ] && return 0
+done < "${2:-/dev/stdin}"
 ```
 
 And the test:
@@ -243,17 +284,11 @@ we can replicate the `nl` tool like this
 Enter one line at a time.  Press ctrl-D to exit.
 #!/bin/ksh
 count=1
-if [ -r "${1}" ]; then
-  while IFS='\n' read -r line; do
-    printf -- '%04d: %s\n' "${count}" "${line}"
-    count=$(( count + 1 ))
-  done < "${1}"
-else
-  while IFS='\n' read -r line; do
-    printf -- '%04d: %s\n' "${count}" "${line}"
-    count=$(( count + 1 ))
-  done
-fi
+
+while IFS='\n' read -r line; do
+  printf -- '%04d: %s\n' "${count}" "${line}"
+  count=$(( count + 1 ))
+done < "${1:-/dev/stdin}"
 ```
 
 And test it like so:
@@ -292,21 +327,12 @@ Enter one line at a time.  Press ctrl-D to exit.
 lines="${1:-5}"
 count=0
 
-if [ -r "${2}" ]; then
-  while IFS='\n' read -r line; do
-    if (( count >= lines )); then
-      printf -- '%s\n' "${line}"
-    fi
-    count=$(( count + 1 ))
-  done < "${2}"
-else
-  while IFS='\n' read -r line; do
-    if (( count >= lines )); then
-      printf -- '%s\n' "${line}"
-    fi
-    count=$(( count + 1 ))
-  done
-fi
+while IFS='\n' read -r line; do
+  if (( count >= lines )); then
+    printf -- '%s\n' "${line}"
+  fi
+  count=$(( count + 1 ))
+done < "${2:-/dev/stdin}"
 ```
 
 Okay, so after setting up an `alias`, we can test it:
@@ -556,6 +582,10 @@ printf -- '%s\n' "${i}"
 
 ### `grep`
 
+This isn't really a full blown `grep`, it's more of a "does a file contain a string?",
+which isn't worthy of the 're' in `grep`.  It's a familiar command name and its 
+usage will also be familiar while serving its purpose.
+
 To save us from having to read through scripts, we can simply print numbered
 matching lines.  This started out like this, but the keen eye will note the errors:
 
@@ -566,19 +596,11 @@ Enter one line at a time.  Press ctrl-D to exit.
 needle="${1:?No search term given}"
 count=1
 
-if [ -r "${1}" ]; then
-  while IFS='\n' read -r line; do
-    case "${line}" in
-      (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "{line}" ;;
-    esac
-  done < "${1}"
-else
-  while IFS='\n' read -r line; do
-    case "${line}" in
-      (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "{line}" ;;
-    esac
-  done
-fi
+while IFS='\n' read -r line; do
+  case "${line}" in
+    (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "{line}" ;;
+  esac
+done < "${1:/dev/stdin}"
 ```
 
 This resulted in a flurry of `chln`, `insln` and `rmln` calls bouncing back and
@@ -593,33 +615,21 @@ Finally, I got it settled on this, spot the differences:
 needle="${1:?No search term given}"
 count=1
 
-if [ -r "${2}" ]; then
-  while IFS='\n' read -r line; do
-    case "${line}" in
-      (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "${line}" ;;
-    esac
-    count=$(( count + 1 ))
-  done < "${2}"
-else
-  while IFS='\n' read -r line; do
-    case "${line}" in
-      (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "${line}" ;;
-    esac
-    count=$(( count + 1 ))
-  done
-fi
+while IFS='\n' read -r line; do
+  case "${line}" in
+    (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "${line}" ;;
+  esac
+  count=$(( count + 1 ))
+done < "${2:-/dev/stdin}"
 ```
 
 And we can now show it at work:
 
 ```
 ▓▒░$ grep line grep
-0006:   while IFS='\n' read -r line; do
-0007:     case "${line}" in
-0008:       (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "${line}" ;;
-0013:   while IFS='\n' read -r line; do
-0014:     case "${line}" in
-0015:       (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "${line}" ;;
+0005: while IFS='\n' read -r line; do
+0006:   case "${line}" in
+0007:     (*"${needle}"*) printf -- '%04d: %s\n' "${count}" "${line}" ;;
 ```
 
 ### `least`

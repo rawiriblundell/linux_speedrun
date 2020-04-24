@@ -2,18 +2,9 @@
 lines="${1:-5}"
 count=0
 
-if [ -r "${2}" ]; then
-  while IFS='\n' read -r line; do
-    if (( count >= lines )); then
-      printf -- '%s\n' "${line}"
-    fi
-    count=$(( count + 1 ))
-  done < "${2}"
-else
-  while IFS='\n' read -r line; do
-    if (( count >= lines )); then
-      printf -- '%s\n' "${line}"
-    fi
-    count=$(( count + 1 ))
-  done
-fi
+while IFS='\n' read -r line; do
+  if (( count >= lines )); then
+    printf -- '%s\n' "${line}"
+  fi
+  count=$(( count + 1 ))
+done < "${2:-/dev/stdin}"

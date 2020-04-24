@@ -2,16 +2,8 @@
 lines="${1:-10}"
 count=0
 
-if [ -r "${2}" ]; then
-  while IFS='\n' read -r line; do
-    printf -- '%s\n' "${line}"
-    count=$(( count + 1 ))
-    [ "${count}" -eq "${lines}" ] && return 0
-  done < "${2}"
-else
-  while IFS='\n' read -r line; do
-    printf -- '%s\n' "${line}"
-    count=$(( count + 1 ))
-    [ "${count}" -eq "${lines}" ] && return 0
-  done
-fi
+while IFS='\n' read -r line; do
+  printf -- '%s\n' "${line}"
+  count=$(( count + 1 ))
+  [ "${count}" -eq "${lines}" ] && return 0
+done < "${2:-/dev/stdin}"
