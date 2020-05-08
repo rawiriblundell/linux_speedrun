@@ -1,0 +1,29 @@
+#!/bin/ksh
+
+if stty size >/dev/null 2>&1; then
+  read -r lines columns < <(stty size)
+elif [ -n "${COLUMNS}" ]; then
+  columns="${COLUMNS}"
+  lines="${LINES}"
+fi
+
+columns="${columns:-80}"
+lines="${lines:-20}"
+
+# We halve the number of lines to allow for line wrapping etc
+lines=$(( lines / 2 ))
+linesread=0
+
+#Start infinite loop
+while true; do
+  /bin/ksh /home/rawiri/git/linux_speedrun/nl < "${1:-/dev/stdin}" |
+    /bin/ksh /home/rawiri/git/linux_speedrun/behead "${linesread}" |
+    /bin/ksh /home/rawiri/git/linux_speedrun/head "${lines}"
+  linesread=$(( linesread + lines ))
+  printf -- '\t%s' "Press q, then [Enter] to quit, or [Enter] to continue" >&2
+  read -r _ans
+  case "${_ans}" in
+    (q*|Q*) exit 0 ;;
+    (''|*) continue ;;
+  esac
+done

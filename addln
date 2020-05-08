@@ -1,2 +1,4 @@
 #!/bin/ksh
-printf -- '%s\n' "${1:?No content supplied}" >> "${2:?No target specified}"
+target="${1:?No target specified}"
+shift 1
+printf -- '%s\n' "${*}" >> "${target}"

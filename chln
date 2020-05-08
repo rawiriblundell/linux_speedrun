@@ -1,8 +1,12 @@
 #!/bin/ksh
 target_line="${1:?No line specified}"
 fs_obj="${2:?No file specified}"
+tmp_obj=".tmp.${fs_obj}"
 shift 2
 
+{
 /bin/ksh /home/rawiri/git/linux_speedrun/head "$(( target_line - 1 ))" "${fs_obj}"
 printf -- '%s\n' "${*}"
 /bin/ksh /home/rawiri/git/linux_speedrun/behead "${target_line}" "${fs_obj}"
+} > "${tmp_obj}"
+cp "${tmp_obj}" "${fs_obj}"
